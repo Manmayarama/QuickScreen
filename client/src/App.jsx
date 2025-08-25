@@ -17,10 +17,14 @@ import AddShows from './pages/admin/AddShows'
 import ListShows from './pages/admin/ListShows'
 import ListBookings from './pages/admin/ListBookings'
 import AdminProtectedRoute from './components/AdminProtectedRoute'
+import { useAppContext } from './context/AppContext'
+import { SignIn } from '@clerk/clerk-react'
+import Loading from './components/Loading'
 
 const App = () => {
 
   const isAdminRoute = useLocation().pathname.startsWith('/admin')/*State variable to check user or admin */
+  const {user}=useAppContext();
 
   return (
     <>
@@ -33,17 +37,21 @@ const App = () => {
         <Route path='/about-us' element={<AboutUs />} />
         <Route path='/movies/:id/:date' element={<SeatLayout />} />
         <Route path='/my-bookings' element={<MyBookings />} />
+        <Route path='/loading/:nextUrl' element={<Loading />} />
         <Route path='/favorite' element={<Favorite />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-        <Route path='/admin' element={<AdminProtectedRoute />}> {/*Admin protected route to protect the admin routes*/}
-          <Route path='/admin/*' element={<Layout />}>
+         {/*Admin protected route to protect the admin routes*/}
+          <Route path='/admin/*' element={user ?<Layout /> : (
+            <div className='min-h-screen flex items-center justify-center'>
+              <SignIn fallbackRedirectUrl={'/admin'}/>
+            </div>
+          )}>
             {/*Placeholder for admin panel, can be replaced with actual admin component*/}
             <Route index element={<Dashboard />} />
             <Route path='add-shows' element={<AddShows />} />
             <Route path='list-shows' element={<ListShows />} />
             <Route path='list-bookings' element={<ListBookings />} />
           </Route>
-        </Route>
       </Routes>
       {!isAdminRoute && <Footer />} {/*Displaying the footer only if it is user*/}
     </>
