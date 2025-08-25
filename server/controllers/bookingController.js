@@ -49,7 +49,10 @@ export const createBooking = async (req, res) => {
     await showData.save();
 
     //Stripe gateway
-    const stripeInstance=new Stripe(process.env.STRIPE_SECRET_KEY);
+    const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: "2024-06-20",
+});
+
     //Creating line items for stripe
     const line_items=[{
       price_data: {
