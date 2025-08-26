@@ -1,5 +1,5 @@
 import axios from "axios";
-import Movie from "../models/movie.js";
+import Movie from "../models/Movie.js";
 import Show from "../models/Shows.js";
 
 
