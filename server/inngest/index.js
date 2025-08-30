@@ -2,6 +2,8 @@ import { Inngest } from "inngest";
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Show from "../models/Show.js";
+import { model } from "mongoose";
+import sendEmail from "../configs/nodeMailer.js";
 
 // Create a client to send and receive events
 export const inngest = new Inngest({ id: "movie-ticket-booking" });
@@ -75,5 +77,70 @@ const releaseSeatsAndDeleteBooking=inngest.createFunction(
     }
 )
 
+//Inngest function to send email when user books a show
+const sendBookingConfirmationEmail = inngest.createFunction(
+    { id: 'send-booking-confirmation-email' },
+    { event: 'app/show.booked' },
+    async ({ event,step }) => {
+        const { bookingId } = event.data;
+        const booking = await Booking.findById(bookingId).populate({
+            path:'show',
+            populate:{
+                path:'movie',
+                model: 'Movie'
+            }
+        }).populate('user');
+        
+        await sendEmail({
+            to: booking.user.email,
+            subject: `Booking Confirmation - ${booking.show.movie.title}`,
+            body: `
+  <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 20px; color: #333;">
+    <div style="max-width: 600px; margin: auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+      
+      <!-- Header -->
+      <div style="background: #4CAF50; padding: 20px; text-align: center; color: white;">
+        <h1 style="margin: 0; font-size: 24px;">🎉 Booking Confirmed!</h1>
+      </div>
+      
+      <!-- Body -->
+      <div style="padding: 20px;">
+        <p style="font-size: 16px;">Hello <strong>${booking.user.name}</strong>,</p>
+        <p style="font-size: 16px;">Thank you for booking with <strong>QuickScreen</strong>. Your movie tickets are confirmed! 🍿</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr>
+            <td style="padding: 10px; border: 1px solid #ddd;"><strong>🎬 Movie</strong></td>
+            <td style="padding: 10px; border: 1px solid #ddd;">${booking.show.movie.title}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #ddd;"><strong>🕒 Showtime</strong></td>
+            <td style="padding: 10px; border: 1px solid #ddd;">${new Date(booking.show.showDateTime).toLocaleString()}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #ddd;"><strong>💺 Seats</strong></td>
+            <td style="padding: 10px; border: 1px solid #ddd;">${booking.bookedSeats.join(", ")}</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px; border: 1px solid #ddd;"><strong>💰 Amount</strong></td>
+            <td style="padding: 10px; border: 1px solid #ddd;">₹${booking.amount}</td>
+          </tr>
+        </table>
+        
+        <p style="font-size: 16px; margin-top: 20px;">Enjoy your movie and have a great time! 🎥✨</p>
+      </div>
+      
+      <!-- Footer -->
+      <div style="background: #f1f1f1; text-align: center; padding: 15px; font-size: 14px; color: #555;">
+        <p style="margin: 0;">© ${new Date().getFullYear()} QuickScreen. All rights reserved.</p>
+      </div>
+    </div>
+  </div>
+`
+
+        })
+    }
+);
+
 // Create an empty array where we'll export future Inngest functions
-export const functions = [syncUserCreation,syncUserDeletion,syncUserUpdation,releaseSeatsAndDeleteBooking];
+export const functions = [syncUserCreation,syncUserDeletion,syncUserUpdation,releaseSeatsAndDeleteBooking,sendBookingConfirmationEmail];
