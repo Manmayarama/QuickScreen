@@ -101,10 +101,11 @@ const sendBookingConfirmationEmail = inngest.createFunction(
                 path:'movie',
                 model: 'Movie'
             }
-        }).populate('user');
+        });
+        const user = await User.findById(booking.user); 
         
         await sendEmail({
-            to: booking.user.email,
+            to: user.email,
             subject: `Booking Confirmation - ${booking.show.movie.title}`,
             body: `
   <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 20px; color: #333;">
