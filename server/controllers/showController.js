@@ -1,11 +1,6 @@
 import axios from "axios";
-<<<<<<< HEAD
 import Movie from "../models/movie.js";
 import Show from "../models/Show.js";
-=======
-import Movie from "../models/Movie.js";
-import Show from "../models/Shows.js";
->>>>>>> 3c1b36cf59bce7f34f5f91691b463986ed8795e7
 
 
 export const getNowPlayingMovies=async (req, res) => {
