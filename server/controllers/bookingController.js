@@ -1,5 +1,6 @@
+import { inngest } from "../inngest/index.js";
 import Booking from "../models/Booking.js";
-import Show from "../models/Shows.js";
+import Show from "../models/Show.js";
 import stripe from 'stripe';
 
 //Function to check seat availability
@@ -76,6 +77,14 @@ export const createBooking = async (req, res) => {
 
     booking.paymentLink = session.url; //the session will return a url is stored in booking.paymentLink
     await booking.save(); //update in database
+
+    //run inngest scheduling function to check payment status after 10 minutes
+    await inngest.send({
+        name: 'app/checkpayment',
+        data: {
+          bookingId: booking._id.toString(),
+        }
+    });
 
     res.json({success:true,url:session.url}); //return the url to frontend
   } catch (error) {
