@@ -59,7 +59,7 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
 
     // Repeat check every 2 minutes for up to 10 minutes
     for (let i = 0; i < 5; i++) {
-      const waitUntil = new Date(Date.now() + 2 * 60 * 1000); // 2 min
+      const waitUntil = new Date(Date.now() + 2 * 60 * 1000); // wait 2 min
       await step.sleepUntil(`wait-${i}`, waitUntil);
 
       const booking = await Booking.findById(bookingId);
@@ -69,12 +69,12 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
       }
 
       if (booking.isPaid) {
-        console.log(`✅ Booking ${bookingId} paid. Stopping early.`);
-        return; // exit early if paid
+        console.log(`✅ Booking ${bookingId} is already paid. Stopping checks.`);
+        return; // stop loop once paid
       }
     }
 
-    // After 10 minutes and still not paid → cancel
+    // Final check after 10 minutes → cancel only if still unpaid
     const booking = await Booking.findById(bookingId);
     if (booking && !booking.isPaid) {
       const show = await Show.findById(booking.show);
@@ -109,20 +109,47 @@ const sendBookingConfirmationEmail = inngest.createFunction(
       return;
     }
 
+    const htmlBody = `
+    <div style="font-family: Arial, sans-serif; background-color:#f9f9f9; padding:20px;">
+      <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); overflow:hidden;">
+        <div style="background:#4CAF50; color:#fff; padding:20px; text-align:center;">
+          <h2 style="margin:0;">🎉 Booking Confirmed!</h2>
+        </div>
+        
+        <div style="padding:20px;">
+          <p style="font-size:16px;">Hello <b>${user.name}</b>,</p>
+          <p style="font-size:16px; color:#333;">
+            ✅ Your booking has been confirmed for:
+          </p>
+          
+          <div style="border:1px solid #ddd; border-radius:8px; padding:15px; margin:15px 0; background:#fafafa;">
+            <h3 style="margin:0; color:#333;">${booking.show.movie.title}</h3>
+            <p style="margin:5px 0; font-size:14px; color:#555;">Seats: <b>${booking.bookedSeats.join(", ")}</b></p>
+            <p style="margin:5px 0; font-size:14px; color:#555;">Showtime: <b>${new Date(booking.show.showDateTime).toLocaleString()}</b></p>
+            <p style="margin:5px 0; font-size:14px; color:#555;">Amount Paid: <b>₹${booking.amount}</b></p>
+          </div>
+
+          <p style="font-size:14px; color:#777;">Please arrive at the theatre 15 minutes before the showtime.</p>
+        </div>
+        
+        <div style="background:#f1f1f1; text-align:center; padding:15px; font-size:12px; color:#555;">
+          🎬 Movie Ticket Booking System<br/>
+          This is an automated email — please do not reply.
+        </div>
+      </div>
+    </div>
+    `;
+
     await sendEmail({
       to: user.email,
       subject: `🎟️ Booking Confirmed - ${booking.show.movie.title}`,
-      body: `
-        Hello ${user.name},<br/>
-        ✅ Your booking is confirmed for ${booking.show.movie.title}.<br/>
-        Seats: ${booking.bookedSeats.join(", ")}<br/>
-        Showtime: ${new Date(booking.show.showDateTime).toLocaleString()}<br/>
-      `,
+      body: htmlBody,
     });
 
     console.log(`✅ Confirmation email sent to ${user.email}`);
   }
 );
+
 
 
 
