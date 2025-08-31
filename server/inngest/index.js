@@ -51,31 +51,43 @@ const syncUserUpdation=inngest.createFunction(
 )
 
 //Inngest function to cancel booking and release seats of show after 10 minutes of booking created if payment is not made.
-const releaseSeatsAndDeleteBooking=inngest.createFunction(
-    {id:'release-seats-and-delete-booking'},
-    {event: 'app/checkpayment'},
-    async ({event,step}) => {
-        const tenMinutesLater=new Date(Date.now()+10*60*1000);
-        await step.sleepUntil('wait-for-10-minutes',tenMinutesLater);
-        await step.run('check-payment-status',async () => {
-            const bookingId = event.data.bookingId;
-            const booking = await Booking.findById(bookingId);
+const releaseSeatsAndDeleteBooking = inngest.createFunction(
+  { id: "release-seats-and-delete-booking" },
+  { event: "app/checkpayment" },
+  async ({ event, step }) => {
+    const bookingId = event.data.bookingId;
+    const booking = await Booking.findById(bookingId);
 
-            //If payment is not made
-            if (!booking.isPaid) {
-                const show=await Show.findById(booking.show);
-                booking.bookedSeats.forEach((seat)=>{
-                    delete show.occupiedSeats[seat];
-                });
-                // Release seats
-                show.markModified('occupiedSeats');
-                await show.save();
-                // Delete booking
-                await Booking.findByIdAndDelete(booking._id);
-            }
-        });
+    // If already paid, stop immediately
+    if (!booking || booking.isPaid) {
+      console.log("✅ Payment already completed, skipping cancellation.");
+      return;
     }
-)
+
+    // Otherwise wait 10 min and re-check
+    const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
+    await step.sleepUntil("wait-for-10-minutes", tenMinutesLater);
+
+    await step.run("check-payment-status", async () => {
+      const bookingAfterWait = await Booking.findById(bookingId);
+      if (bookingAfterWait && !bookingAfterWait.isPaid) {
+        const show = await Show.findById(bookingAfterWait.show);
+
+        bookingAfterWait.bookedSeats.forEach((seat) => {
+          delete show.occupiedSeats[seat];
+        });
+
+        show.markModified("occupiedSeats");
+        await show.save();
+
+        await Booking.findByIdAndDelete(bookingAfterWait._id);
+
+        console.log("❌ Booking cancelled due to no payment.");
+      }
+    });
+  }
+);
+
 
 //Inngest function to send email when user books a show
 const sendBookingConfirmationEmail = inngest.createFunction(
@@ -96,16 +108,19 @@ const sendBookingConfirmationEmail = inngest.createFunction(
         return { success: false, reason: "Booking not found" };
       }
 
-      // 2. Load user explicitly
+      // 2. Load user explicitly (because booking.user is a Clerk string ID, not an ObjectId ref)
       const user = await User.findById(booking.user);
       if (!user || !user.email) {
-        console.error("❌ User not found or no email:", booking.user);
+        console.error("❌ User not found or missing email:", booking.user);
         return { success: false, reason: "User not found or no email" };
       }
 
+      // Debug log
+      console.log("📧 Sending booking confirmation to:", user.email);
+
       // 3. Send email
       await sendEmail({
-        to: user.email,
+        to: user.email.trim(), // prevent trailing commas/spaces
         subject: `🎟️ Booking Confirmation - ${booking.show.movie.title}`,
         body: `
           <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 20px;">
@@ -146,6 +161,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
     }
   }
 );
+
 
 
 // Create an empty array where we'll export future Inngest functions
