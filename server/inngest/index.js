@@ -50,44 +50,32 @@ const syncUserUpdation=inngest.createFunction(
     }
 )
 
-const releaseSeatsAndDeleteBooking = inngest.createFunction(
-  { id: "release-seats-and-delete-booking" },
-  // Listen to booking check events
-  { event: "app/checkpayment" },
-  async ({ event, step }) => {
-    const bookingId = event.data.bookingId;
+//Inngest function to cancel booking and release seats of show after 10 minutes of booking created if payment is not made.
+const releaseSeatsAndDeleteBooking=inngest.createFunction(
+    {id:'release-seats-and-delete-booking'},
+    {event: 'app/checkpayment'},
+    async ({event,step}) => {
+        const tenMinutesLater=new Date(Date.now()+10*60*1000);
+        await step.sleepUntil('wait-for-10-minutes',tenMinutesLater);
+        await step.run('check-payment-status',async () => {
+            const bookingId = event.data.bookingId;
+            const booking = await Booking.findById(bookingId);
 
-    // Sleep UNTIL either 10 minutes passes OR payment succeeds
-    const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
-
-    // wait for either timeout or payment success
-    const result = await step.waitForEvent("wait-for-payment", {
-      event: "app/payment.succeeded",
-      match: (incoming) => incoming.data.bookingId === bookingId,
-      timeout: tenMinutesLater,
-    });
-
-    // If payment succeeded -> exit early, do nothing
-    if (result.event) {
-      return;
+            //If payment is not made
+            if (!booking.isPaid) {
+                const show=await Show.findById(booking.show);
+                booking.bookedSeats.forEach((seat)=>{
+                    delete show.occupiedSeats[seat];
+                });
+                // Release seats
+                show.markModified('occupiedSeats');
+                await show.save();
+                // Delete booking
+                await Booking.findByIdAndDelete(booking._id);
+            }
+        });
     }
-
-    // Otherwise (timeout hit) -> cancel booking
-    const booking = await Booking.findById(bookingId);
-    if (booking && !booking.isPaid) {
-      const show = await Show.findById(booking.show);
-
-      booking.bookedSeats.forEach((seat) => {
-        delete show.occupiedSeats[seat];
-      });
-
-      show.markModified("occupiedSeats");
-      await show.save();
-
-      await Booking.findByIdAndDelete(booking._id);
-    }
-  }
-);
+)
 
 //Inngest function to send email when user books a show
 const sendBookingConfirmationEmail = inngest.createFunction(
@@ -101,11 +89,10 @@ const sendBookingConfirmationEmail = inngest.createFunction(
                 path:'movie',
                 model: 'Movie'
             }
-        });
-        const user = await User.findById(booking.user); 
+        }).populate('user');
         
         await sendEmail({
-            to: user.email,
+            to: booking.user.email,
             subject: `Booking Confirmation - ${booking.show.movie.title}`,
             body: `
   <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 20px; color: #333;">
