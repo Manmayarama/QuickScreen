@@ -99,87 +99,39 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
 //Inngest function to send email when user books a show
 const sendBookingConfirmationEmail = inngest.createFunction(
   { id: "send-booking-confirmation-email" },
-  { event: "app/show.booked" },
-  async ({ event, step }) => {
-    try {
-      const { bookingId } = event.data;
+  { event: "app/payment.success" },
+  async ({ event }) => {
+    const booking = await Booking.findById(event.data.bookingId).populate({
+      path: "show",
+      populate: { path: "movie", model: "Movie" },
+    });
 
-      // 1. Load booking + show + movie
-      const booking = await Booking.findById(bookingId).populate({
-        path: "show",
-        populate: { path: "movie", model: "Movie" },
-      });
-
-      if (!booking) {
-        console.error("❌ Booking not found:", bookingId);
-        return { success: false, reason: "Booking not found" };
-      }
-
-      // 2. Load user explicitly
-      const user = await User.findById(booking.user);
-      if (!user || !user.email) {
-        console.error("❌ User not found or no email:", booking.user);
-        return { success: false, reason: "User not found or no email" };
-      }
-
-      // 3. Sanitize email
-      const recipientEmail = (user.email || "")
-        .trim()
-        .replace(/,+$/, ""); // remove trailing commas
-
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!recipientEmail || !emailRegex.test(recipientEmail)) {
-        console.error("❌ Invalid recipient email:", user.email);
-        return { success: false, reason: "Invalid email" };
-      }
-
-      // Debug log
-      console.log("📧 Sending booking confirmation to:", recipientEmail);
-
-      // 4. Send email
-      await sendEmail({
-        to: recipientEmail,
-        subject: `🎟️ Booking Confirmation - ${booking.show.movie.title}`,
-        body: `
-          <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 20px;">
-            <div style="max-width: 600px; margin: auto; background: #fff; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-              
-              <!-- Header -->
-              <div style="background: #4CAF50; padding: 20px; text-align: center; color: white;">
-                <h1 style="margin: 0;">🎉 Booking Confirmed!</h1>
-              </div>
-              
-              <!-- Body -->
-              <div style="padding: 20px;">
-                <p style="font-size: 16px;">Hello <strong>${user.name}</strong>,</p>
-                <p style="font-size: 15px;">Your movie booking is confirmed:</p>
-                <ul style="list-style: none; padding: 0; font-size: 15px; line-height: 1.6;">
-                  <li><strong>🎬 Movie:</strong> ${booking.show.movie.title}</li>
-                  <li><strong>🕒 Showtime:</strong> ${new Date(booking.show.showDateTime).toLocaleString()}</li>
-                  <li><strong>💺 Seats:</strong> ${booking.bookedSeats.join(", ")}</li>
-                  <li><strong>💰 Amount:</strong> ₹${booking.amount}</li>
-                </ul>
-                <p style="margin-top: 20px;">🍿 Enjoy your movie with <strong>QuickScreen</strong>!</p>
-              </div>
-
-              <!-- Footer -->
-              <div style="background: #f1f1f1; padding: 15px; text-align: center; font-size: 13px; color: #666;">
-                <p style="margin: 0;">© ${new Date().getFullYear()} QuickScreen. All rights reserved.</p>
-              </div>
-            </div>
-          </div>
-        `,
-      });
-
-      console.log(`✅ Confirmation email sent to ${recipientEmail}`);
-      return { success: true };
-    } catch (err) {
-      console.error("❌ Error sending booking confirmation:", err);
-      return { success: false, error: err.message };
+    if (!booking || !booking.isPaid) {
+      console.log("❌ No valid paid booking found.");
+      return;
     }
+
+    const user = await User.findById(booking.user);
+    if (!user?.email) {
+      console.log("❌ User not found or no email.");
+      return;
+    }
+
+    await sendEmail({
+      to: user.email,
+      subject: `🎟️ Booking Confirmed - ${booking.show.movie.title}`,
+      body: `
+        Hello ${user.name},<br/>
+        ✅ Your booking is confirmed for ${booking.show.movie.title}.<br/>
+        Seats: ${booking.bookedSeats.join(", ")}<br/>
+        Showtime: ${new Date(booking.show.showDateTime).toLocaleString()}<br/>
+      `,
+    });
+
+    console.log(`✅ Confirmation email sent to ${user.email}`);
   }
 );
+
 
 
 // Create an empty array where we'll export future Inngest functions
