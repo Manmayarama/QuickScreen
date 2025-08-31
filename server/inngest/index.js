@@ -169,15 +169,12 @@ const sendNewShowEmail = inngest.createFunction(
   { id: "send-new-show-email" },
   { event: "app/show.added" },
   async ({ event }) => {
-    const { movieTitle } = event.data;
-
     const show = await Show.findById(event.data.showId).populate("movie");
     if (!show) {
       console.log("❌ Show not found");
       return;
     }
 
-    // format IST showtime
     function formatShowTime(date) {
       return new Date(date).toLocaleString("en-US", {
         timeZone: "Asia/Kolkata",
@@ -191,7 +188,6 @@ const sendNewShowEmail = inngest.createFunction(
     }
     const showTime = formatShowTime(show.showDateTime);
 
-    // Get all users to notify
     const users = await User.find({});
     if (!users.length) {
       console.log("⚠️ No users found to notify.");
@@ -207,22 +203,16 @@ const sendNewShowEmail = inngest.createFunction(
             <div style="background:#2196F3; color:#fff; padding:20px; text-align:center;">
               <h2 style="margin:0;">🍿 New Show Added!</h2>
             </div>
-            
             <div style="padding:20px;">
               <p style="font-size:16px;">Hello <b>${user.name}</b>,</p>
-              <p style="font-size:16px; color:#333;">
-                A new show has been added:
-              </p>
-              
+              <p style="font-size:16px; color:#333;">A new show has been added:</p>
               <div style="border:1px solid #ddd; border-radius:8px; padding:15px; margin:15px 0; background:#fafafa;">
-                <h3 style="margin:0; color:#333;">${movieTitle}</h3>
+                <h3 style="margin:0; color:#333;">${show.movie.title}</h3>
                 <p style="margin:5px 0; font-size:14px; color:#555;">Showtime: <b>${showTime}</b></p>
                 <p style="margin:5px 0; font-size:14px; color:#555;">Ticket Price: <b>₹${show.showPrice}</b></p>
               </div>
-
               <p style="font-size:14px; color:#777;">Hurry up and book your seats before they’re gone!</p>
             </div>
-            
             <div style="background:#f1f1f1; text-align:center; padding:15px; font-size:12px; color:#555;">
               🎬 Movie Ticket Booking System<br/>
               This is an automated email — please do not reply.
@@ -233,7 +223,7 @@ const sendNewShowEmail = inngest.createFunction(
 
       await sendEmail({
         to: user.email,
-        subject: `🍿 New Show Added - ${movieTitle || "Movie"}`,
+        subject: `🍿 New Show Added - ${show.movie.title}`,
         body: htmlBody,
       });
 
@@ -241,7 +231,6 @@ const sendNewShowEmail = inngest.createFunction(
     }
   }
 );
-
 
 // Create an empty array where we'll export future Inngest functions
 export const functions = [syncUserCreation, syncUserDeletion, syncUserUpdation, releaseSeatsAndDeleteBooking, sendBookingConfirmationEmail, sendNewShowEmail];
