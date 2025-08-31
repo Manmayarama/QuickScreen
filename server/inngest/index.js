@@ -233,7 +233,7 @@ const sendNewShowEmail = inngest.createFunction(
 
       await sendEmail({
         to: user.email,
-        subject: `🍿 New Show Added - ${show.movie?.title || "Movie"}`,
+        subject: `🍿 New Show Added - ${movieTitle || "Movie"}`,
         body: htmlBody,
       });
 
