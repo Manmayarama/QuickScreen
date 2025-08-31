@@ -57,38 +57,43 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
   async ({ event, step }) => {
     const bookingId = event.data.bookingId;
 
-    // Always wait 10 minutes before deciding
+    // Wait 10 minutes before checking payment
     const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000);
     await step.sleepUntil("wait-for-10-minutes", tenMinutesLater);
 
-    await step.run("check-payment-status", async () => {
-      const booking = await Booking.findById(bookingId);
+    // Re-check booking after wait
+    const booking = await Booking.findById(bookingId);
 
-      if (!booking) {
-        console.log("⚠️ Booking not found:", bookingId);
-        return;
-      }
+    if (!booking) {
+      console.log("❌ Booking not found, nothing to cancel.");
+      return;
+    }
 
-      if (booking.isPaid) {
-        console.log("✅ Booking paid within 10 minutes, keeping seats.");
-        return;
-      }
+    if (booking.isPaid) {
+      console.log(`✅ Booking ${bookingId} already paid. No cancellation.`);
+      return;
+    }
 
-      // Not paid → release seats + delete booking
-      const show = await Show.findById(booking.show);
-      booking.bookedSeats.forEach((seat) => {
-        delete show.occupiedSeats[seat];
-      });
+    // Not paid -> release seats
+    const show = await Show.findById(booking.show);
+    if (!show) {
+      console.error("❌ Show not found:", booking.show);
+      return;
+    }
 
-      show.markModified("occupiedSeats");
-      await show.save();
-
-      await Booking.findByIdAndDelete(booking._id);
-
-      console.log("❌ Booking cancelled due to no payment.");
+    booking.bookedSeats.forEach((seat) => {
+      delete show.occupiedSeats[seat];
     });
+
+    show.markModified("occupiedSeats");
+    await show.save();
+
+    await Booking.findByIdAndDelete(booking._id);
+
+    console.log(`❌ Booking ${bookingId} cancelled due to no payment.`);
   }
 );
+
 
 
 //Inngest function to send email when user books a show
@@ -99,9 +104,6 @@ const sendBookingConfirmationEmail = inngest.createFunction(
     try {
       const { bookingId } = event.data;
 
-      // Debug incoming event
-      console.log("📥 Incoming bookingId from event:", bookingId);
-
       // 1. Load booking + show + movie
       const booking = await Booking.findById(bookingId).populate({
         path: "show",
@@ -109,30 +111,35 @@ const sendBookingConfirmationEmail = inngest.createFunction(
       });
 
       if (!booking) {
-        console.error("❌ Booking not found for ID:", bookingId);
+        console.error("❌ Booking not found:", bookingId);
         return { success: false, reason: "Booking not found" };
       }
 
-      console.log("✅ Booking loaded:", booking._id.toString());
-
-      // 2. Load user explicitly (since booking.user is a Clerk string ID)
+      // 2. Load user explicitly
       const user = await User.findById(booking.user);
-
-      if (!user) {
-        console.error("❌ User not found for booking.user:", booking.user);
-        return { success: false, reason: "User not found" };
+      if (!user || !user.email) {
+        console.error("❌ User not found or no email:", booking.user);
+        return { success: false, reason: "User not found or no email" };
       }
 
-      if (!user.email) {
-        console.error("❌ User has no email:", user);
-        return { success: false, reason: "User has no email" };
+      // 3. Sanitize email
+      const recipientEmail = (user.email || "")
+        .trim()
+        .replace(/,+$/, ""); // remove trailing commas
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!recipientEmail || !emailRegex.test(recipientEmail)) {
+        console.error("❌ Invalid recipient email:", user.email);
+        return { success: false, reason: "Invalid email" };
       }
 
-      console.log("📧 Sending booking confirmation to:", user.email);
+      // Debug log
+      console.log("📧 Sending booking confirmation to:", recipientEmail);
 
-      // 3. Send email
+      // 4. Send email
       await sendEmail({
-        to: user.email.trim(),
+        to: recipientEmail,
         subject: `🎟️ Booking Confirmation - ${booking.show.movie.title}`,
         body: `
           <div style="font-family: Arial, sans-serif; background: #f8f9fa; padding: 20px;">
@@ -165,7 +172,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
         `,
       });
 
-      console.log(`✅ Confirmation email sent to ${user.email}`);
+      console.log(`✅ Confirmation email sent to ${recipientEmail}`);
       return { success: true };
     } catch (err) {
       console.error("❌ Error sending booking confirmation:", err);
