@@ -97,6 +97,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
       path: "show",
       populate: { path: "movie", model: "Movie" },
     });
+    const show = await Show.findById(booking.show);
 
     if (!booking || !booking.isPaid) {
       console.log("❌ No valid paid booking found.");
@@ -125,7 +126,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
           <div style="border:1px solid #ddd; border-radius:8px; padding:15px; margin:15px 0; background:#fafafa;">
             <h3 style="margin:0; color:#333;">${booking.show.movie.title}</h3>
             <p style="margin:5px 0; font-size:14px; color:#555;">Seats: <b>${booking.bookedSeats.join(", ")}</b></p>
-            <p style="margin:5px 0; font-size:14px; color:#555;">Showtime: <b>${new Date(booking.show.showDateTime).toLocaleString()}</b></p>
+            <p style="margin:5px 0; font-size:14px; color:#555;">Showtime: <b>${new Date(show.showDateTime).toLocaleString()}</b></p>
             <p style="margin:5px 0; font-size:14px; color:#555;">Amount Paid: <b>₹${booking.amount}</b></p>
           </div>
 
