@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 
 const AddShows = () => {
 
-  const {axios,getToken,user,imageBaseUrl} = useAppContext();
+  const { axios, getToken, user, imageBaseUrl } = useAppContext();
 
   const currency = import.meta.env.VITE_CURRENCY;
   const [nowPlayingMovies, setNowPlayingMovies] = useState([]);
@@ -20,9 +20,9 @@ const AddShows = () => {
   const [addingShow, setAddingShow] = useState(false);
 
   const fetchNowPlayingMovies = async () => {
-    try{
-      const {data} = await axios.get('/api/show/now-playing',{headers:{Authorization:`Bearer ${await getToken()}` }});
-      if(data.success) {
+    try {
+      const { data } = await axios.get('/api/show/now-playing', { headers: { Authorization: `Bearer ${await getToken()}` } });
+      if (data.success) {
         setNowPlayingMovies(data.movies);
       } else {
         toast.error(data.message);
@@ -59,18 +59,18 @@ const AddShows = () => {
   const handleSubmit = async () => {
     try {
       setAddingShow(true);
-      if(!selectedMovie || Object.keys(dateTimeSelection).length === 0 || !showPrice) {
+      if (!selectedMovie || Object.keys(dateTimeSelection).length === 0 || !showPrice) {
         setAddingShow(false);
         return toast.error('Please fill in all fields.');
       }
-      const showsInput=Object.entries(dateTimeSelection).map(([date, time]) => ({date, time}));
+      const showsInput = Object.entries(dateTimeSelection).map(([date, time]) => ({ date, time }));
       const payload = {
         movieId: selectedMovie,
         showsInput,
-        showPrice:Number(showPrice)
+        showPrice: Number(showPrice)
       };
-      const {data} = await axios.post('/api/show/add', payload, {headers:{Authorization:`Bearer ${await getToken()}` }});
-      if(data.success) {
+      const { data } = await axios.post('/api/show/add', payload, { headers: { Authorization: `Bearer ${await getToken()}` } });
+      if (data.success) {
         toast.success(data.message);
         // Reset form
         setSelectedMovie(null);
@@ -82,12 +82,12 @@ const AddShows = () => {
     } catch (error) {
       console.error('Error adding show:', error);
       toast.error('Error adding show. Please try again.');
-    } 
-      setAddingShow(false);
+    }
+    setAddingShow(false);
   };
 
   useEffect(() => {
-    if(user){
+    if (user) {
       fetchNowPlayingMovies();
     }
   }, [user]);
@@ -101,7 +101,7 @@ const AddShows = () => {
           {nowPlayingMovies.map((movie) => (
             <div key={movie.id} className={`relative max-w-40 cursor-pointer group-hover:not-hover:opacity-40 hover:-translate-y-1 transition duration-300 `} onClick={() => setSelectedMovie(movie.id)}>
               < div className="relative rounded-lg overflow-hidden">
-                <img src={imageBaseUrl+movie.poster_path} alt="" className="w-full object-cover brightness-90" />
+                <img src={imageBaseUrl + movie.poster_path} alt="" className="w-full object-cover brightness-90" />
                 <div className='text-sm flex items-center justify-between p-2 bg-black/70 w-full absolute bottom-0 left-0'>
                   <p className='flex items-center gap-1 text-gray-400'><StarIcon className='w-4 h-4 text-primary fill-primary' /> {movie.vote_average.toFixed(1)}</p>
                   <p className='text-gray-400'>{kConverter(movie.vote_count)} Votes</p>

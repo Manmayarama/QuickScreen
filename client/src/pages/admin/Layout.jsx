@@ -7,7 +7,7 @@ import Loading from '../../components/Loading'
 
 const Layout = () => {
 
-  const {isAdmin,fetchIsAdmin}=useAppContext();
+  const { isAdmin, fetchIsAdmin } = useAppContext();
 
   useEffect(() => {
     fetchIsAdmin();
@@ -22,7 +22,7 @@ const Layout = () => {
           <Outlet /> {/* Outlet to render nested routes for admin panel */}
         </div>
       </div>
-      
+
     </>
   ) : <Loading />
 }

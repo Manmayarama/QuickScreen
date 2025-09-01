@@ -8,14 +8,14 @@ import { useAppContext } from '../../context/AppContext';
 const ListBookings = () => {
 
   const currency = import.meta.env.VITE_CURRENCY;
-  const {axios,getToken,user} = useAppContext();
+  const { axios, getToken, user } = useAppContext();
 
   const [bookings, setBookings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const getAllBookings = async () => {
     try {
-      const {data} = await axios.get('/api/admin/all-bookings',{headers: {Authorization: `Bearer ${await getToken()}`}})
+      const { data } = await axios.get('/api/admin/all-bookings', { headers: { Authorization: `Bearer ${await getToken()}` } })
       setBookings(data.bookings);
       setIsLoading(false);
     } catch (error) {
@@ -24,7 +24,7 @@ const ListBookings = () => {
   };
 
   useEffect(() => {
-    if(user)
+    if (user)
       getAllBookings();
   }, [user]);
 

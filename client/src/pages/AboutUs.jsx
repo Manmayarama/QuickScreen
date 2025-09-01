@@ -53,8 +53,8 @@ const AboutUs = () => {
 
     return (
         <div className="bg-dark text-primary-dull overflow-x-hidden">
-            <BlurCircle top='-100px' left='-100px'/>
-            <BlurCircle bottom='0px' right='0px'/>
+            <BlurCircle top='-100px' left='-100px' />
+            <BlurCircle bottom='0px' right='0px' />
             {/* Hero */}
             <div className="relative h-[60vh] md:h-[70vh] flex items-center justify-center text-center px-6">
                 <div

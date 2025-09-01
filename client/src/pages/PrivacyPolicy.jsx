@@ -29,8 +29,8 @@ const PrivacyPolicy = () => {
 
     return (
         <div className="bg-dark text-primary-dull min-h-screen px-6 py-20 md:px-24">
-             <BlurCircle top='-100px' left='-100px'/>
-            <BlurCircle bottom='0px' right='0px'/>
+            <BlurCircle top='-100px' left='-100px' />
+            <BlurCircle bottom='0px' right='0px' />
             <div
                 ref={ref}
                 className={`max-w-4xl mx-auto transition-all duration-1000 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}

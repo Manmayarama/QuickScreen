@@ -2,7 +2,6 @@ import { Inngest } from "inngest";
 import User from "../models/User.js";
 import Booking from "../models/Booking.js";
 import Show from "../models/Show.js";
-import { model } from "mongoose";
 import sendEmail from "../configs/nodeMailer.js";
 
 // Create a client to send and receive events
@@ -10,120 +9,120 @@ export const inngest = new Inngest({ id: "movie-ticket-booking" });
 
 //Inngest function to save user data to database
 const syncUserCreation = inngest.createFunction(
-    { id: 'sync-user-from-clerk' },
-    { event: 'clerk/user.created' },
-    async ({ event }) => {
-        const { id, first_name, last_name, email_addresses, image_url } = event.data;
-        const userData = {
-            _id: id,
-            email: email_addresses[0].email_address,
-            name: first_name + ' ' + last_name,
-            image: image_url
-        }
-        await User.create(userData);
+  { id: 'sync-user-from-clerk' },
+  { event: 'clerk/user.created' },
+  async ({ event }) => {
+    const { id, first_name, last_name, email_addresses, image_url } = event.data;
+    const userData = {
+      _id: id,
+      email: email_addresses[0].email_address,
+      name: first_name + ' ' + last_name,
+      image: image_url
     }
+    await User.create(userData);
+  }
 )
 
 //Inngest Function to delete user from database
 const syncUserDeletion = inngest.createFunction(
-    { id: 'delete-user-from-clerk' },
-    { event: 'clerk/user.deleted' },
-    async ({ event }) => {
-        const { id } = event.data;
-        await User.findByIdAndDelete(id);
-    }
+  { id: 'delete-user-from-clerk' },
+  { event: 'clerk/user.deleted' },
+  async ({ event }) => {
+    const { id } = event.data;
+    await User.findByIdAndDelete(id);
+  }
 )
 
 //Inngest Function to update user in database
 const syncUserUpdation = inngest.createFunction(
-    { id: 'update-user-from-clerk' },
-    { event: 'clerk/user.updated' },
-    async ({ event }) => {
-        const { id, first_name, last_name, email_addresses, image_url } = event.data;
-        const userData = {
-            _id: id,
-            email: email_addresses[0].email_address,
-            name: first_name + ' ' + last_name,
-            image: image_url
-        }
-        await User.findByIdAndUpdate(id, userData);
+  { id: 'update-user-from-clerk' },
+  { event: 'clerk/user.updated' },
+  async ({ event }) => {
+    const { id, first_name, last_name, email_addresses, image_url } = event.data;
+    const userData = {
+      _id: id,
+      email: email_addresses[0].email_address,
+      name: first_name + ' ' + last_name,
+      image: image_url
     }
+    await User.findByIdAndUpdate(id, userData);
+  }
 )
 
 //Inngest function to cancel booking and release seats of show after 10 minutes of booking created if payment is not made.
 const releaseSeatsAndDeleteBooking = inngest.createFunction(
-    { id: "release-seats-and-delete-booking" },
-    { event: "app/checkpayment" },
-    async ({ event, step }) => {
-        const bookingId = event.data.bookingId;
+  { id: "release-seats-and-delete-booking" },
+  { event: "app/checkpayment" },
+  async ({ event, step }) => {
+    const bookingId = event.data.bookingId;
 
-        // Repeat check every 2 minutes for up to 10 minutes
-        for (let i = 0; i < 5; i++) {
-            const waitUntil = new Date(Date.now() + 2 * 60 * 1000); // wait 2 min
-            await step.sleepUntil(`wait-${i}`, waitUntil);
+    // Repeat check every 2 minutes for up to 10 minutes
+    for (let i = 0; i < 5; i++) {
+      const waitUntil = new Date(Date.now() + 2 * 60 * 1000); // wait 2 min
+      await step.sleepUntil(`wait-${i}`, waitUntil);
 
-            const booking = await Booking.findById(bookingId);
-            if (!booking) {
-                console.log("❌ Booking not found, stopping loop.");
-                return;
-            }
+      const booking = await Booking.findById(bookingId);
+      if (!booking) {
+        console.log("❌ Booking not found, stopping loop.");
+        return;
+      }
 
-            if (booking.isPaid) {
-                console.log(`✅ Booking ${bookingId} is already paid. Stopping checks.`);
-                return; // stop loop once paid
-            }
-        }
-
-        // Final check after 10 minutes → cancel only if still unpaid
-        const booking = await Booking.findById(bookingId);
-        if (booking && !booking.isPaid) {
-            const show = await Show.findById(booking.show);
-            booking.bookedSeats.forEach(seat => delete show.occupiedSeats[seat]);
-            show.markModified("occupiedSeats");
-            await show.save();
-            await Booking.findByIdAndDelete(booking._id);
-
-            console.log(`❌ Booking ${bookingId} cancelled after 10 minutes (no payment).`);
-        }
+      if (booking.isPaid) {
+        console.log(`✅ Booking ${bookingId} is already paid. Stopping checks.`);
+        return; // stop loop once paid
+      }
     }
+
+    // Final check after 10 minutes → cancel only if still unpaid
+    const booking = await Booking.findById(bookingId);
+    if (booking && !booking.isPaid) {
+      const show = await Show.findById(booking.show);
+      booking.bookedSeats.forEach(seat => delete show.occupiedSeats[seat]);
+      show.markModified("occupiedSeats");
+      await show.save();
+      await Booking.findByIdAndDelete(booking._id);
+
+      console.log(`❌ Booking ${bookingId} cancelled after 10 minutes (no payment).`);
+    }
+  }
 );
 
 //Inngest function to send email when user books a show
 const sendBookingConfirmationEmail = inngest.createFunction(
-    { id: "send-booking-confirmation-email" },
-    { event: "app/payment.success" },
-    async ({ event }) => {
-        const booking = await Booking.findById(event.data.bookingId).populate({
-            path: "show",
-            populate: { path: "movie", model: "Movie" },
-        });
-        const show = await Show.findById(booking.show);
+  { id: "send-booking-confirmation-email" },
+  { event: "app/payment.success" },
+  async ({ event }) => {
+    const booking = await Booking.findById(event.data.bookingId).populate({
+      path: "show",
+      populate: { path: "movie", model: "Movie" },
+    });
+    const show = await Show.findById(booking.show);
 
-        if (!booking || !booking.isPaid) {
-            console.log("❌ No valid paid booking found.");
-            return;
-        }
+    if (!booking || !booking.isPaid) {
+      console.log("❌ No valid paid booking found.");
+      return;
+    }
 
-        const user = await User.findById(booking.user);
-        if (!user?.email) {
-            console.log("❌ User not found or no email.");
-            return;
-        }
+    const user = await User.findById(booking.user);
+    if (!user?.email) {
+      console.log("❌ User not found or no email.");
+      return;
+    }
 
-        function formatShowTime(date) {
-            return new Date(date).toLocaleString("en-US", {
-                timeZone: "Asia/Kolkata",  // ✅ Ensure IST
-                weekday: "short",
-                month: "long",
-                day: "numeric",
-                hour: "numeric",
-                minute: "2-digit",
-                hour12: true
-            }).replace(",", " at");
-        }
-        const showTime = formatShowTime(booking.show.showDateTime);
+    function formatShowTime(date) {
+      return new Date(date).toLocaleString("en-US", {
+        timeZone: "Asia/Kolkata",  // ✅ Ensure IST
+        weekday: "short",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+      }).replace(",", " at");
+    }
+    const showTime = formatShowTime(booking.show.showDateTime);
 
-        const htmlBody = `
+    const htmlBody = `
     <div style="font-family: Arial, sans-serif; background-color:#f9f9f9; padding:20px;">
       <div style="max-width:600px; margin:0 auto; background:#ffffff; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.1); overflow:hidden;">
         <div style="background:#4CAF50; color:#fff; padding:20px; text-align:center;">
@@ -147,21 +146,21 @@ const sendBookingConfirmationEmail = inngest.createFunction(
         </div>
         
         <div style="background:#f1f1f1; text-align:center; padding:15px; font-size:12px; color:#555;">
-          🎬 Movie Ticket Booking System<br/>
+          Copyright ${new Date().getFullYear()} © QuickScreen. All Right Reserved.<br/>
           This is an automated email — please do not reply.
         </div>
       </div>
     </div>
     `;
 
-        await sendEmail({
-            to: user.email,
-            subject: `🎟️ Booking Confirmed - ${booking.show.movie.title}`,
-            body: htmlBody,
-        });
+    await sendEmail({
+      to: user.email,
+      subject: `🎟️ Booking Confirmed - ${booking.show.movie.title}`,
+      body: htmlBody,
+    });
 
-        console.log(`✅ Confirmation email sent to ${user.email}`);
-    }
+    console.log(`✅ Confirmation email sent to ${user.email}`);
+  }
 );
 
 //Notification when new show added
@@ -214,7 +213,7 @@ const sendNewShowEmail = inngest.createFunction(
               <p style="font-size:14px; color:#777;">Hurry up and book your seats before they’re gone!</p>
             </div>
             <div style="background:#f1f1f1; text-align:center; padding:15px; font-size:12px; color:#555;">
-              🎬 Movie Ticket Booking System<br/>
+              Copyright ${new Date().getFullYear()} © QuickScreen. All Right Reserved.<br/>
               This is an automated email — please do not reply.
             </div>
           </div>
